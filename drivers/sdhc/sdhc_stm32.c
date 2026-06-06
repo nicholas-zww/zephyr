@@ -1462,8 +1462,11 @@ static int sdhc_stm32_rw_extended(const struct device *dev, struct sdhc_command 
 	dev_data->total_transfer_bytes = data->blocks * data->block_size;
 
 	if (IS_ENABLED(CONFIG_SDHC_STM32_DMA_MODE)) {
+		size_t dma_buf_size = ROUND_UP(dev_data->total_transfer_bytes,
+					       CONFIG_SDHC_BUFFER_ALIGNMENT);
+
 		dev_data->sdio_dma_buf = k_aligned_alloc(CONFIG_SDHC_BUFFER_ALIGNMENT,
-							 data->blocks * data->block_size);
+							 dma_buf_size);
 		if (dev_data->sdio_dma_buf == NULL) {
 			LOG_ERR("DMA buffer allocation failed");
 			return -ENOMEM;
@@ -1471,9 +1474,11 @@ static int sdhc_stm32_rw_extended(const struct device *dev, struct sdhc_command 
 
 		if (direction == SDIO_IO_WRITE) {
 			memcpy(dev_data->sdio_dma_buf, data->data, dev_data->total_transfer_bytes);
+			sys_cache_data_flush_range(dev_data->sdio_dma_buf,
+						   dma_buf_size);
+		} else {
+			sys_cache_data_invd_range(dev_data->sdio_dma_buf, dma_buf_size);
 		}
-
-		sys_cache_data_flush_range(dev_data->sdio_dma_buf, dev_data->total_transfer_bytes);
 		res = sdhc_stm32_sdio_rw_extended_dma(cmd, instance, is_block_mode, dev_data,
 						      direction);
 
@@ -1492,9 +1497,8 @@ static int sdhc_stm32_rw_extended(const struct device *dev, struct sdhc_command 
 		}
 
 		if (direction == SDIO_IO_READ) {
-			sys_cache_data_invd_range(dev_data->sdio_dma_buf,
-						  dev_data->total_transfer_bytes);
-			memcpy(data->data, dev_data->sdio_dma_buf, data->block_size * data->blocks);
+			sys_cache_data_invd_range(dev_data->sdio_dma_buf, dma_buf_size);
+			memcpy(data->data, dev_data->sdio_dma_buf, dev_data->total_transfer_bytes);
 		}
 
 		k_free(dev_data->sdio_dma_buf);

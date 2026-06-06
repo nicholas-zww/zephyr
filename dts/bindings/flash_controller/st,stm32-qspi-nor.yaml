@@ -14,6 +14,12 @@ properties:
   size:
     required: true
     description: Flash Memory size in bits
+  write-block-size:
+    type: int
+    description: Minimum write block size supported by the flash in bytes.
+  erase-block-size:
+    type: int
+    description: Minimum erase block size supported by the flash in bytes.
   reg:
     required: true
     description: Flash Memory base address and size in bytes

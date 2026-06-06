@@ -43,7 +43,7 @@
 
 #define CY_WIFI_HOST_WAKE_IRQ_EVENT GPIO_INT_TRIG_LOW
 #define DEFAULT_OOB_PIN             (0)
-#define WLAN_POWER_UP_DELAY_MS      (250)
+#define WLAN_POWER_UP_DELAY_MS      (200)
 #define WLAN_CBUCK_DISCHARGE_MS     (10)
 
 extern whd_resource_source_t resource_ops;

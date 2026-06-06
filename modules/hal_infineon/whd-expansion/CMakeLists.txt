@@ -10,6 +10,11 @@ else()
 endif()
 
 set(hal_dir                  ${ZEPHYR_HAL_INFINEON_MODULE_DIR})
+cmake_path(GET hal_dir PARENT_PATH hal_infineon_parent_dir)
+set(hal_payload_dir          ${hal_infineon_parent_dir}/hal/infineon)
+if(EXISTS ${hal_payload_dir}/whd-expansion/WHD)
+  set(hal_dir                ${hal_payload_dir})
+endif()
 set(hal_wifi_dir             ${hal_dir}/whd-expansion)
 set(hal_wifi_dir_resources   ${hal_dir}/whd-expansion/WHD/${whd_wifi_ver}/resources)
 
@@ -18,6 +23,15 @@ set(blob_gen_dir             ${ZEPHYR_BINARY_DIR}/include/generated)
 
 set(airoc_wifi_fw_bin_gen_inc   ${blob_gen_dir}/airoc_wifi_fw_blob.inc)
 set(airoc_wifi_clm_bin_gen_inc  ${blob_gen_dir}/airoc_wifi_clm_blob.inc)
+
+if(CONFIG_AIROC_WIFI_CUSTOM)
+  if(DEFINED FW_IMAGE_NAME)
+    set(airoc_wifi_fw_bin ${FW_IMAGE_NAME})
+  endif()
+  if(DEFINED CLM_IMAGE_NAME)
+    set(airoc_wifi_clm_bin ${CLM_IMAGE_NAME})
+  endif()
+endif()
 
 #########################################################################################
 # Wi-Fi Host driver

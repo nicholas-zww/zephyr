@@ -167,6 +167,7 @@
 
 &sdmmc1 {
 	status = "okay";
+	interrupt-names = "event";
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc1_d0_pc8 &sdmmc1_d1_pc9 &sdmmc1_d2_pc10
 		     &sdmmc1_d3_pc11 &sdmmc1_ck_pc12 &sdmmc1_cmd_pd2>;
@@ -241,6 +242,8 @@
 		compatible = "st,stm32-qspi-nor";
 		reg = <0>;
 		size = <DT_SIZE_M(64)>; /* 64Mbit */
+		write-block-size = <1>;
+		erase-block-size = <DT_SIZE_K(4)>;
 		qspi-max-frequency = <100000000>;
 		cs-high-time = <2>;
 		status = "okay";

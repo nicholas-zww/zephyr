@@ -54,6 +54,10 @@
 #include <zephyr/irq.h>
 LOG_MODULE_REGISTER(flash_stm32_qspi, CONFIG_FLASH_LOG_LEVEL);
 
+#if defined(CONFIG_FLASH_JESD216_API)
+static int qspi_read_jedec_id(const struct device *dev, uint8_t *id);
+#endif
+
 #define STM32_QSPI_FIFO_THRESHOLD         8
 #define STM32_QSPI_CLOCK_PRESCALER_MAX  255
 
@@ -592,6 +596,7 @@ static int stm32_qspi_abort(const struct device *dev)
 static int flash_stm32_qspi_read(const struct device *dev, off_t addr,
 				 void *data, size_t size)
 {
+	const struct flash_stm32_qspi_config *dev_cfg = dev->config;
 	int ret;
 
 	if (!qspi_address_is_valid(dev, addr, size)) {
@@ -607,6 +612,41 @@ static int flash_stm32_qspi_read(const struct device *dev, off_t addr,
 
 #ifdef CONFIG_STM32_MEMMAP
 	qspi_lock_thread(dev);
+
+	/*
+	 * ART-Pi's STM32H7 QSPI path can stall on memory-mapped reads from the
+	 * top of the mapped region. Keep the fast path for normal traffic, but
+	 * use an indirect read for the final 256 bytes where MCUboot trailer
+	 * reads land.
+	 */
+	if ((addr + size) > (dev_cfg->flash_size - 256U)) {
+		QSPI_CommandTypeDef cmd = {
+			.Instruction = SPI_NOR_CMD_READ,
+			.Address = addr,
+			.InstructionMode = QSPI_INSTRUCTION_1_LINE,
+			.AddressMode = QSPI_ADDRESS_1_LINE,
+			.DataMode = QSPI_DATA_1_LINE,
+		};
+
+		qspi_set_address_size(dev, &cmd);
+		if (IS_ENABLED(STM32_QSPI_USE_QUAD_IO)) {
+			ret = qspi_prepare_quad_read(dev, &cmd);
+			if (ret < 0) {
+				goto end;
+			}
+		}
+
+		if (stm32_qspi_is_memory_mapped(dev)) {
+			ret = stm32_qspi_abort(dev);
+			if (ret != 0) {
+				LOG_ERR("READ: failed to abort memory mapped access");
+				goto end;
+			}
+		}
+
+		ret = qspi_read_access(dev, &cmd, data, size);
+		goto end;
+	}
 
 	/* Do reads through memory-mapping instead of indirect */
 	if (!stm32_qspi_is_memory_mapped(dev)) {

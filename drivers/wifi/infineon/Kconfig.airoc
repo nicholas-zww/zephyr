@@ -21,7 +21,8 @@ if WIFI_AIROC
 config AIROC_WIFI_BUS_SDIO
 	bool
 	default y
-	depends on $(dt_compat_on_bus,$(DT_COMPAT_INFINEON_AIROC_WIFI),sd)
+	depends on $(dt_compat_on_bus,$(DT_COMPAT_INFINEON_AIROC_WIFI),sd) || \
+		   (DT_HAS_INFINEON_AIROC_WIFI_ENABLED && !AIROC_WIFI_BUS_SPI)
 	select SDHC
 	select SDIO_STACK
 	help

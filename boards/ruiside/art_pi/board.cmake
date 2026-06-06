@@ -2,7 +2,6 @@
 
 # keep first
 board_runner_args(stm32cubeprogrammer "--port=swd" "--reset-mode=hw")
-board_runner_args(stm32cubeprogrammer "--extload=ART-Pi_W25Q64.stldr")
 board_runner_args(openocd --target-handle=_CHIPNAME.cpu0)
 
 # keep first

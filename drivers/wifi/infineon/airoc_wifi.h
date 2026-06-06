@@ -55,6 +55,7 @@ struct airoc_wifi_data {
 	whd_scan_result_t scan_result;
 	struct k_sem sema_common;
 	struct k_sem sema_scan;
+	struct k_work_delayable iface_up_work;
 #if defined(CONFIG_NET_STATISTICS_WIFI)
 	struct net_stats_wifi stats;
 #endif
