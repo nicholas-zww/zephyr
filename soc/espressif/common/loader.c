@@ -96,6 +96,7 @@
 #endif
 
 void __start(void);
+void __esp_start_c(void) __attribute__((noreturn, noinline, used));
 static HDR_ATTR void (*_entry_point)(void) = &__start;
 
 esp_image_header_t WORD_ALIGNED_ATTR bootloader_image_hdr;
@@ -280,35 +281,9 @@ void map_rom_segments(int core, struct rom_segments *map)
 }
 #endif /* !CONFIG_MCUBOOT */
 
-void __start(void)
+void __esp_start_c(void)
 {
 #ifdef CONFIG_RISCV_GP
-	/* Set up stack FIRST - before any other operations */
-	__asm__ __volatile__("li sp, %0" ::"i"(DRAM_STACK_START));
-
-	/* Disable interrupts before setting up the vector table */
-	csr_read_clear(mstatus, MSTATUS_MIE);
-
-	__asm__ __volatile__("la t0, _vector_table\n"
-			     "csrw mtvec, t0\n");
-
-#if SOC_INT_CLIC_SUPPORTED
-	/* CLIC: mtvt points to the hardware-vectored interrupt table.
-	 * mtvec mode bits are hardwired to 3 (CLIC) on ESP32-C5.
-	 */
-	__asm__ __volatile__("la t0, _mtvt_table\n"
-			     "csrw 0x307, t0\n"); /* mtvt CSR */
-#endif
-
-	/* Configure the global pointer register
-	 * (This should be the first thing startup does, as any other piece of code could be
-	 * relaxed by the linker to access something relative to __global_pointer$)
-	 */
-	__asm__ __volatile__(".option push\n"
-			     ".option norelax\n"
-			     "la gp, __global_pointer$\n"
-			     ".option pop");
-
 	arch_bss_zero();
 
 #else /* xtensa */
@@ -341,7 +316,9 @@ void __start(void)
 	}
 #endif
 
+#if defined(CONFIG_MCUBOOT) || defined(CONFIG_ESP_SIMPLE_BOOT)
 	soc_random_enable();
+#endif
 
 #if defined(CONFIG_ESP_SIMPLE_BOOT) || defined(CONFIG_BOOTLOADER_MCUBOOT)
 	map_rom_segments(0, &map);
@@ -351,7 +328,9 @@ void __start(void)
 
 	ESP_EARLY_LOGI(TAG, "libc heap size %d kB.", libc_heap_size / 1024);
 
+#if defined(CONFIG_ESP_SIMPLE_BOOT)
 	soc_random_disable();
+#endif
 
 	__esp_platform_app_start();
 #endif /* CONFIG_ESP_SIMPLE_BOOT || CONFIG_BOOTLOADER_MCUBOOT */
@@ -359,4 +338,44 @@ void __start(void)
 #if defined(CONFIG_MCUBOOT)
 	__esp_platform_mcuboot_start();
 #endif
+
+	CODE_UNREACHABLE;
 }
+
+#ifdef CONFIG_RISCV_GP
+void __start(void) __attribute__((naked, noreturn));
+
+void __start(void)
+{
+	__asm__ __volatile__(
+		/* Set up stack FIRST - before any compiler-generated stack use. */
+		"li sp, %[stack_top]\n"
+
+		/* Disable interrupts before setting up the vector table. */
+		"csrci mstatus, %[mie]\n"
+
+		"la t0, _vector_table\n"
+		"csrw mtvec, t0\n"
+#if SOC_INT_CLIC_SUPPORTED
+		/* CLIC: mtvt points to the hardware-vectored interrupt table. */
+		"la t0, _mtvt_table\n"
+		"csrw 0x307, t0\n"
+#endif
+
+		/* gp must be initialized before any C code can run. */
+		".option push\n"
+		".option norelax\n"
+		"la gp, __global_pointer$\n"
+		".option pop\n"
+
+		"tail __esp_start_c\n"
+		:
+		: [stack_top] "i"(DRAM_STACK_START), [mie] "i"(MSTATUS_MIE)
+		: "t0");
+}
+#else
+void __start(void)
+{
+	__esp_start_c();
+}
+#endif
